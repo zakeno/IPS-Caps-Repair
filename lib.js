@@ -318,8 +318,8 @@ function buildPdf(opts) {
     const bw = CW / 3, hh2 = 12, rh2 = 13, SIGH = 26;
     const blocks = [
       { t: 'PRODUCTION REPRESENTATIVE (FGJV)', name: p1.prodName || '', desig: p1.prodDesig || '', sig: p1.signature || null },
-      { t: 'QUA REPRESENTATIVE (FGJV)', name: '', desig: '' },
-      { t: 'CLIENT REPRESENTATIVE (SHL)', name: '', desig: '', np: !p1.shlPresent },
+      { t: 'QUA REPRESENTATIVE (FGJV)', name: (p1.qua && p1.qua.name) || '', desig: (p1.qua && p1.qua.desig) || '' },
+      { t: 'CLIENT REPRESENTATIVE (SHL)', name: p1.shlPresent ? ((p1.shl && p1.shl.name) || '') : '', desig: p1.shlPresent ? ((p1.shl && p1.shl.desig) || '') : '', np: !p1.shlPresent },
     ];
     blocks.forEach((b, i) => {
       const x0 = M + i * bw;
@@ -335,6 +335,7 @@ function buildPdf(opts) {
         const lw = strW(lab, 6.6, true) + 8;
         if (r === 0 && b.name) P.text(b.name, x0 + 3 + lw, ry + 9, 7, true);
         if (r === 1 && b.desig) P.text(b.desig, x0 + 3 + lw, ry + 9, 7, true);
+        if (r === 3 && p1.date) P.text(p1.date, x0 + 3 + lw, ry + 9, 7, true);
         if (r === 2 && b.sig) P.sigImage(b.sig, x0 + 3 + lw, ry + 1, bw - lw - 8, rh - 2);
         ry += rh;
       });

@@ -20,9 +20,10 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function dstr(t) { var d = new Date(t); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayStr() { var d = new Date(); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear(); }
   function cleanId(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  function S() { return state.settings || { id: SETTINGS_ID, fgjv: '', qua: '', prodName: '', prodDesig: '', logo: null, sig: null }; }
+  function S() { return state.settings || { id: SETTINGS_ID, fgjv: '', qua: '', prodName: '', prodDesig: '', quaName: '', quaDesig: '', shlName: '', shlDesig: '', logo: null, sig: null }; }
   function needSetup() { var s = S(); return !s.fgjv || !s.qua; }
 
   /* ---------- storage (IndexedDB, this phone only) ---------- */
@@ -80,6 +81,7 @@
   }
   function normalise(u) {
     if (u.expiry == null) u.expiry = '';
+    if (u.date == null) u.date = '';
     u.segments.forEach(function (s) { if (!s.caps) s.caps = []; });
     return u;
   }
@@ -209,8 +211,10 @@
     });
     return m;
   }
+  function shlInitials(n) { return String(n || '').trim().split(/\s+/).map(function (w) { return w.charAt(0).toUpperCase(); }).join(''); }
   function buildForPdf(u, sg) {
     var s = S();
+    var shlPresent = !!((s.shlName || '').trim() || (s.shlDesig || '').trim());
     var vals = { expiry: u.expiry.trim() };
     var caps = sg.caps.map(function (c) {
       var photos = {};
@@ -232,8 +236,9 @@
         }),
         repairType: FORM.repairType, cms: FORM.cms,
         remarks: [remark(sg)],
-        initials: { c: s.fgjv, q: s.qua, s: 'Not Present' },
-        shlPresent: false, prodName: s.prodName, prodDesig: s.prodDesig,
+        initials: { c: s.fgjv, q: s.qua, s: shlPresent ? shlInitials(s.shlName) : 'Not Present' },
+        shlPresent: shlPresent, prodName: s.prodName, prodDesig: s.prodDesig,
+        qua: { name: s.quaName, desig: s.quaDesig }, shl: { name: s.shlName, desig: s.shlDesig }, date: (u.date || '').trim(),
         signature: s.sig ? { bytes: new Uint8Array(s.sig.buf), w: s.sig.w, h: s.sig.h } : null
       }
     });
@@ -335,9 +340,14 @@
     h += '<form class="card" id="f-set" autocomplete="off">';
     h += '<label class="fld"><span>FGJV CONST initials</span><input id="s-fgjv" type="text" value="' + esc(s.fgjv) + '" maxlength="8" autocapitalize="characters" placeholder="e.g. ZAK"></label>';
     h += '<label class="fld"><span>FGJV QUA initials</span><input id="s-qua" type="text" value="' + esc(s.qua) + '" maxlength="8" autocapitalize="characters" placeholder="Quality representative"></label>';
-    h += '<p class="note" style="margin:0">SHL is always printed as "Not Present".</p>';
-    h += '<label class="fld"><span>Your name (Production Representative)</span><input id="s-name" type="text" value="' + esc(s.prodName) + '" maxlength="60" placeholder="Name"></label>';
-    h += '<label class="fld"><span>Designation</span><input id="s-desig" type="text" value="' + esc(s.prodDesig) + '" maxlength="60" placeholder="e.g. Engineer - Project"></label>';
+    h += '<p class="note" style="margin:0"></p>';
+    h += '<label class="fld"><span>FGJV Production Rep: name (you)</span><input id="s-name" type="text" value="' + esc(s.prodName) + '" maxlength="60" placeholder="Name"></label>';
+    h += '<label class="fld"><span>FGJV Production Rep: designation</span><input id="s-desig" type="text" value="' + esc(s.prodDesig) + '" maxlength="60" placeholder="e.g. Engineer - Project"></label>';
+    h += '<label class="fld"><span>FGJV Quality Rep: name</span><input id="s-qname" type="text" value="' + esc(s.quaName) + '" maxlength="60" placeholder="Name"></label>';
+    h += '<label class="fld"><span>FGJV Quality Rep: designation</span><input id="s-qdesig" type="text" value="' + esc(s.quaDesig) + '" maxlength="60" placeholder="e.g. Coordinator - Quality"></label>';
+    h += '<label class="fld"><span>SHL Rep: name</span><input id="s-sname" type="text" value="' + esc(s.shlName) + '" maxlength="60" placeholder="Leave blank if SHL is not present"></label>';
+    h += '<label class="fld"><span>SHL Rep: designation</span><input id="s-sdesig" type="text" value="' + esc(s.shlDesig) + '" maxlength="60" placeholder="Leave blank if SHL is not present"></label>';
+    h += '<p class="note" style="margin:0">If the SHL name and designation are blank, the form prints "Not Present" for SHL.</p>';
     h += '<button class="primary" type="submit">Save settings</button></form>';
     h += '<div class="card"><h2>Logo (optional)</h2>';
     if (s.logo) {
@@ -380,6 +390,7 @@
     h += topBanner();
     h += '<div class="card"><h2>Form details</h2>';
     h += '<label class="fld"><span>Item 3: expiry and storage <b class="req">required</b></span><input type="text" data-f="expiry" value="' + esc(u.expiry) + '" placeholder="e.g. 27-Mar" autocomplete="off"></label>';
+    h += '<label class="fld"><span>Form date (printed in all three date boxes)</span><input type="text" data-f="date" value="' + esc(u.date) + '" placeholder="dd/mm/yyyy" autocomplete="off"></label>';
     h += '<p class="note" style="margin:0">Everything else on the form is pre-filled. One form is made per segment.</p></div>';
     h += '<div class="card"><h2>Add segment</h2><div class="chips">';
     LETTERS.forEach(function (L) {
@@ -401,7 +412,7 @@
       });
       h += '<div class="row"><button class="grow" data-act="addcap" data-seg="' + esc(s.id) + '">+ Add cap</button><button class="primary grow" data-act="pdf" data-seg="' + esc(s.id) + '">Save PDF</button></div></div>';
     });
-    h += '<div class="card"><h2>Export</h2><div class="row"><button class="primary grow" data-act="pdf">Save all forms (ZIP)</button></div><div class="row"><button class="grow" data-act="jpgs">Save to Photos</button><button class="grow" data-act="zip">Photos as ZIP</button></div><p class="note" style="margin:0">Each PDF is page 1 of Form 0008 followed by the cap photo pages, two caps per page. Date fields are left blank; your signature is added if saved in Settings.</p></div>';
+    h += '<div class="card"><h2>Export</h2><div class="row"><button class="primary grow" data-act="pdf">Save all forms (ZIP)</button></div><div class="row"><button class="grow" data-act="jpgs">Save to Photos</button><button class="grow" data-act="zip">Photos as ZIP</button></div><p class="note" style="margin:0">Each PDF is page 1 of Form 0008 followed by the cap photo pages, two caps per page. The form date and your signature (if saved in Settings) are filled in. QUA and SHL signatures are left blank.</p></div>';
     h += '<button class="danger" data-act="rmutn">Delete this UTN</button>';
     return h;
   }
@@ -416,7 +427,7 @@
   function renderKeepSettings() {
     // re-render the settings screen without losing typed values
     var keep = {};
-    ['s-fgjv', 's-qua', 's-name', 's-desig'].forEach(function (id) { var e = document.getElementById(id); if (e) keep[id] = e.value; });
+    ['s-fgjv', 's-qua', 's-name', 's-desig', 's-qname', 's-qdesig', 's-sname', 's-sdesig'].forEach(function (id) { var e = document.getElementById(id); if (e) keep[id] = e.value; });
     render();
     Object.keys(keep).forEach(function (id) { var e = document.getElementById(id); if (e) e.value = keep[id]; });
   }
@@ -431,7 +442,7 @@
       if (!v) { toast('Enter the UTN number.'); return; }
       var ex = state.utns.filter(function (u) { return u.utn === v; })[0];
       if (ex) { go('utn', ex.id); return; }
-      var rec = { id: uid(), utn: v, created: Date.now(), updated: Date.now(), expiry: '', segments: [] };
+      var rec = { id: uid(), utn: v, created: Date.now(), updated: Date.now(), expiry: '', date: todayStr(), segments: [] };
       state.utns.push(rec);
       save(rec).then(function () { go('utn', rec.id); });
     } else if (id === 'f-seg') {
@@ -444,6 +455,7 @@
       s.id = SETTINGS_ID;
       s.fgjv = $('#s-fgjv').value.trim(); s.qua = $('#s-qua').value.trim();
       s.prodName = $('#s-name').value.trim(); s.prodDesig = $('#s-desig').value.trim();
+      s.quaName = $('#s-qname').value.trim(); s.quaDesig = $('#s-qdesig').value.trim(); s.shlName = $('#s-sname').value.trim(); s.shlDesig = $('#s-sdesig').value.trim();
       if (!s.fgjv || !s.qua) { toast('Enter both the FGJV CONST and FGJV QUA initials.'); return; }
       state.settings = s;
       dbPut(s).then(function (ok) { toast(ok ? 'Settings saved.' : 'Saved for now, but this browser is not keeping data.'); go('home', null); });
